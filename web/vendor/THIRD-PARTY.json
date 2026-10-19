@@ -1,0 +1,42 @@
+[
+  {
+    "name": "markdown-it",
+    "version": "14.3.3",
+    "license": "MIT"
+  },
+  {
+    "name": "markdown-it-footnote",
+    "version": "4.0.0",
+    "license": "MIT"
+  },
+  {
+    "name": "markdown-it-task-lists",
+    "version": "2.1.1",
+    "license": "ISC"
+  },
+  {
+    "name": "katex",
+    "version": "0.16.11",
+    "license": "MIT"
+  },
+  {
+    "name": "highlight.js",
+    "version": "11.12.0",
+    "license": "BSD-3-Clause"
+  },
+  {
+    "name": "@highlightjs/cdn-assets",
+    "version": "11.12.0",
+    "license": "BSD-3-Clause"
+  },
+  {
+    "name": "mermaid",
+    "version": "11.17.2",
+    "license": "MIT"
+  },
+  {
+    "name": "codemirror",
+    "version": "5.65.16",
+    "license": "MIT"
+  }
+]

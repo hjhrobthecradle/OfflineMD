@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="paper">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' offline-md:; script-src 'self' offline-md:; style-src 'self' offline-md: 'unsafe-inline'; img-src 'self' offline-md: data: blob:; font-src 'self' offline-md: data:; connect-src 'none'; media-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OfflineMD</title>
+<link rel="stylesheet" href="vendor/cm/codemirror.css">
+<link rel="stylesheet" href="vendor/katex.min.css">
+<link rel="stylesheet" href="css/content.css">
+<link rel="stylesheet" href="css/wysiwyg.css">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="app" class="view-split">
+
+  <header id="toolbar">
+    <div class="tb-group">
+      <button id="btn-sidebar" class="icon-btn" title="侧栏 ⌘⇧L" aria-label="侧栏">
+        <svg viewBox="0 0 20 20" width="16" height="16"><path d="M3 4h14M3 10h14M3 16h14" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round"/></svg>
+      </button>
+      <button id="btn-new" class="icon-btn" title="新建 ⌘N" aria-label="新建">
+        <svg viewBox="0 0 20 20" width="16" height="16"><path d="M10 4v12M4 10h12" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round"/></svg>
+      </button>
+      <button id="btn-open" class="icon-btn" title="打开 ⌘O" aria-label="打开">
+        <svg viewBox="0 0 20 20" width="16" height="16"><path d="M3 6.5h5l1.6 2H17v7.5H3z" stroke="currentColor" stroke-width="1.3" fill="none" stroke-linejoin="round"/></svg>
+      </button>
+      <button id="btn-save" class="icon-btn" title="保存 ⌘S" aria-label="保存">
+        <svg viewBox="0 0 20 20" width="16" height="16"><path d="M4 3.5h9.5L16.5 6.5v10h-13z" stroke="currentColor" stroke-width="1.3" fill="none" stroke-linejoin="round"/><path d="M7 3.5v4h6v-4M7 16.5v-4h6v4" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>
+      </button>
+    </div>
+
+    <div class="tb-title">
+      <span id="doc-title">未命名</span>
+      <span id="dirty-dot" class="dirty-dot" hidden></span>
+    </div>
+
+    <div class="tb-group tb-right">
+      <div class="seg" id="view-seg">
+        <button data-view="wysiwyg" class="active" title="所见即所得 ⌘1">编辑</button>
+        <button data-view="source" title="源码模式 ⌘2">源码</button>
+        <button data-view="split" title="分栏模式 ⌘3">分栏</button>
+        <button data-view="preview" title="预览模式 ⌘4">预览</button>
+      </div>
+      <button id="btn-find" class="icon-btn" title="查找与替换 ⌘F" aria-label="查找">
+        <svg viewBox="0 0 20 20" width="16" height="16"><circle cx="9" cy="9" r="5" stroke="currentColor" stroke-width="1.4" fill="none"/><path d="M12.8 12.8L16.5 16.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+      </button>
+      <button id="btn-theme" class="icon-btn" title="切换主题" aria-label="主题">
+        <svg viewBox="0 0 20 20" width="16" height="16"><circle cx="10" cy="10" r="6.2" stroke="currentColor" stroke-width="1.3" fill="none"/><path d="M10 3.8v12.4a6.2 6.2 0 0 0 0-12.4z" fill="currentColor"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div id="main">
+    <aside id="sidebar">
+      <div class="side-tabs">
+        <button data-tab="outline" class="active">大纲</button>
+        <button data-tab="files">文件</button>
+      </div>
+      <div id="side-body">
+        <div id="outline-list" class="side-panel"></div>
+        <div id="tree-list" class="side-panel" hidden></div>
+      </div>
+      <div id="side-foot">
+        <button id="btn-open-folder" class="link-btn">打开文件夹…</button>
+      </div>
+    </aside>
+
+    <div id="editor-wrap"><textarea id="editor" spellcheck="false"></textarea></div>
+    <div id="splitter" title="拖动调整宽度"></div>
+    <div id="preview-wrap"><article id="preview" class="markdown-body"></article></div>
+    <div id="wysiwyg-wrap"><div id="wysiwyg" class="markdown-body" spellcheck="false"></div></div>
+  </div>
+
+  <footer id="statusbar">
+    <div class="sb-left">
+      <span id="sb-path" class="sb-path">未保存的文档</span>
+    </div>
+    <div class="sb-right">
+      <span id="sb-cursor"></span>
+      <span id="sb-lines"></span>
+      <span id="sb-chars"></span>
+      <span id="sb-words"></span>
+    </div>
+  </footer>
+
+  <div id="findbar" hidden>
+    <div class="fb-row">
+      <input id="find-input" type="text" placeholder="查找…" spellcheck="false">
+      <span id="find-count" class="fb-count"></span>
+      <button id="find-prev" class="icon-btn" title="上一个 ⇧⏎">↑</button>
+      <button id="find-next" class="icon-btn" title="下一个 ⏎">↓</button>
+      <label class="fb-check" title="区分大小写"><input id="find-case" type="checkbox">Aa</label>
+      <button id="find-close" class="icon-btn" title="关闭 Esc">✕</button>
+    </div>
+    <div class="fb-row" id="replace-row">
+      <input id="replace-input" type="text" placeholder="替换为…" spellcheck="false">
+      <button id="replace-one" class="text-btn">替换</button>
+      <button id="replace-all" class="text-btn">全部替换</button>
+    </div>
+  </div>
+
+  <div id="restorebar" hidden>
+    <span id="restore-text">发现未保存的编辑快照。</span>
+    <button id="restore-open" class="text-btn">查看</button>
+    <button id="restore-dismiss" class="icon-btn">✕</button>
+  </div>
+
+  <div id="modal" hidden>
+    <div class="modal-card">
+      <div class="modal-head"><span id="modal-title">标题</span><button id="modal-close" class="icon-btn">✕</button></div>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+
+  <div id="toast" hidden></div>
+  <div id="export-scratch" aria-hidden="true"></div>
+</div>
+
+<script src="vendor/cm/codemirror.js"></script>
+<script src="vendor/cm/xml.js"></script>
+<script src="vendor/cm/javascript.js"></script>
+<script src="vendor/cm/css.js"></script>
+<script src="vendor/cm/clike.js"></script>
+<script src="vendor/cm/yaml.js"></script>
+<script src="vendor/cm/python.js"></script>
+<script src="vendor/cm/shell.js"></script>
+<script src="vendor/cm/sql.js"></script>
+<script src="vendor/cm/markdown.js"></script>
+<script src="vendor/cm/continuelist.js"></script>
+<script src="vendor/cm/closebrackets.js"></script>
+<script src="vendor/cm/active-line.js"></script>
+<script src="vendor/cm/searchcursor.js"></script>
+<script src="vendor/cm/placeholder.js"></script>
+
+<script src="vendor/markdown-it.min.js"></script>
+<script src="vendor/markdown-it-footnote.min.js"></script>
+<script src="vendor/markdown-it-task-lists.min.js"></script>
+<script src="vendor/katex.min.js"></script>
+<script src="vendor/highlight.min.js"></script>
+<script src="vendor/mermaid.min.js"></script>
+
+<script src="js/bridge.js"></script>
+<script src="js/math.js"></script>
+<script src="js/render.js"></script>
+<script src="js/welcome.js"></script>
+<script src="vendor/wysiwyg.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

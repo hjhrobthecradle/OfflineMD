@@ -1,0 +1,205 @@
+/* ============================================================
+   wysiwyg.css — 所见即所得编辑面 + 导出草稿容器
+   ProseMirror 基础样式 + 编辑区容器 + 图表挂件
+   ============================================================ */
+
+/* ---- 导出用的离屏草稿容器（不参与布局，不闪屏） ---- */
+
+#export-scratch {
+  position: fixed;
+  left: -20000px;
+  top: 0;
+  width: 794px;
+  height: 10px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  z-index: -1;
+  visibility: hidden;
+}
+
+/* ---- ProseMirror 必需的基础规则 ---- */
+.ProseMirror {
+  position: relative;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  white-space: break-spaces;
+  -webkit-font-variant-ligatures: none;
+  font-variant-ligatures: none;
+  outline: none;
+  min-height: 1em;
+  caret-color: var(--accent);
+}
+.ProseMirror pre { white-space: pre-wrap; }
+.ProseMirror li { position: relative; }
+.ProseMirror-hideselection *::selection { background: transparent; }
+.ProseMirror-hideselection *::-moz-selection { background: transparent; }
+.ProseMirror-hideselection { caret-color: transparent; }
+.ProseMirror-selectednode {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ---- 编辑面容器 ---- */
+
+#wysiwyg-wrap {
+  grid-column: 2 / 5;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  background: var(--bg);
+  display: none;
+}
+
+#app.view-wysiwyg #wysiwyg-wrap { display: block; }
+#app.view-wysiwyg #editor-wrap,
+#app.view-wysiwyg #preview-wrap,
+#app.view-wysiwyg #splitter { display: none; }
+#app.view-wysiwyg #main { grid-template-columns: var(--sidebar-w, 232px) 1fr; }
+#app.view-wysiwyg.no-sidebar #main { grid-template-columns: 0px 1fr; }
+
+#wysiwyg {
+  max-width: 46em;
+  margin: 0 auto;
+  padding: 38px 44px 240px;
+  min-height: 100%;
+  outline: none;
+}
+
+#app.focus-mode #wysiwyg { max-width: 38em; }
+
+/* 编辑面里的段落与标题：继承 content.css 的 .markdown-body 规则 */
+#wysiwyg.markdown-body { font-size: 16px; line-height: 1.78; }
+
+/* 空文档提示 */
+#wysiwyg.ProseMirror > p:only-child:empty::before,
+#wysiwyg.ProseMirror > p:only-child > br:only-child::before {
+  content: "开始写作…";
+  color: var(--fg-faint);
+  pointer-events: none;
+}
+
+/* ---- 代码块：语言标签 + 高亮 ---- */
+
+#wysiwyg pre {
+  position: relative;
+  background: var(--code-bg);
+  border: 1px solid var(--code-border);
+  border-radius: 9px;
+  padding: 12px 14px;
+  overflow-x: auto;
+  font-family: "SF Mono", ui-monospace, Menlo, monospace;
+  font-size: .86em;
+  line-height: 1.62;
+  color: var(--fg);
+}
+#wysiwyg pre code { background: none; border: none; padding: 0; color: inherit; font-size: 1em; }
+
+/* ---- Mermaid 挂件 ---- */
+
+.mmd-live {
+  margin: -0.4em 0 1.2em;
+  padding: 10px 12px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 9px;
+  background: var(--bg-panel);
+  text-align: center;
+  overflow-x: auto;
+  user-select: none;
+  cursor: default;
+}
+.mmd-live[data-state="done"] { border-style: solid; border-color: var(--border); }
+.mmd-live svg { max-width: 100%; height: auto; }
+.mmd-loading {
+  font-size: 11.5px;
+  color: var(--fg-faint);
+  font-family: "SF Mono", Menlo, monospace;
+  padding: 8px 0;
+}
+.mmd-error {
+  text-align: left;
+  font-size: 11.5px;
+  color: #c9584a;
+  font-family: "SF Mono", Menlo, monospace;
+  white-space: pre-wrap;
+  padding: 6px 0;
+}
+
+/* ---- 表格：编辑态需要可点击的单元格 ---- */
+
+#wysiwyg table { border-collapse: separate; border-spacing: 0; margin: 1.1em 0; width: auto; max-width: 100%; }
+#wysiwyg table td,
+#wysiwyg table th { border: 1px solid var(--border); padding: .42em .7em; min-width: 3em; vertical-align: top; }
+#wysiwyg table th { background: var(--table-head); font-weight: 640; }
+#wysiwyg table .selectedCell {
+  background: var(--accent-soft);
+  outline: 1px solid var(--accent);
+}
+#wysiwyg table .column-resize-handle {
+  position: absolute;
+  right: -2px; top: 0; bottom: 0;
+  width: 4px;
+  background: var(--accent);
+  pointer-events: none;
+}
+
+/* ---- 图片 ---- */
+
+#wysiwyg img { max-width: 100%; border-radius: 7px; }
+#wysiwyg img.ProseMirror-selectednode { outline: 2px solid var(--accent); }
+#wysiwyg img.remote-img { outline: 1px dashed var(--border-strong); min-height: 18px; }
+
+/* ---- 列表标记（Milkdown 把标记写进 data-label，自己画） ---- */
+
+#wysiwyg ul,
+#wysiwyg ol { padding-left: 1.5em; }
+#wysiwyg li { position: relative; list-style: none; margin: .24em 0; }
+#wysiwyg li[data-label]::before {
+  content: attr(data-label);
+  position: absolute;
+  left: -1.25em;
+  color: var(--fg-faint);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+#wysiwyg ul ul, #wysiwyg ul ol, #wysiwyg ol ul, #wysiwyg ol ol { margin: .2em 0; }
+
+/* ---- 任务列表（node view 渲染的勾选框） ---- */
+
+#wysiwyg li.task-item {
+  display: block;
+  position: relative;
+  padding-left: 28px;
+  list-style: none;
+}
+#wysiwyg li.task-item::before { display: none; }
+#wysiwyg li.task-item .task-checkbox {
+  position: absolute;
+  left: 2px;
+  top: .48em;
+  margin: 0;
+  cursor: default;
+}
+#wysiwyg li.task-item[data-checked="true"] { color: var(--fg-faint); }
+#wysiwyg li.task-item[data-checked="true"] .task-body {
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--fg-faint) 60%, transparent);
+}
+#wysiwyg li.task-item .task-body > p { margin: .28em 0; }
+
+/* ---- 下划线 ---- */
+#wysiwyg u,
+#wysiwyg ins {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ---- 选中态 ---- */
+
+#wysiwyg ::selection { background: var(--sel); }
+
+/* ---- 打印时隐藏挂件边框 ---- */
+@media print {
+  .mmd-live { border: none !important; background: none !important; }
+}
