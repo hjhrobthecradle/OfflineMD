@@ -160,16 +160,19 @@ final class FeatureTester: NSObject, WKNavigationDelegate {
                 assert("视图切换测试异常", false, e.message);
             }
 
-            // 6. 测试主题切换
+            // 6. 测试主题切换（包含原生菜单 view.theme 与 view.theme:xxx 格式分发）
             try {
-                window.__debug.setTheme('graphite');
-                assert("主题切换: graphite", document.documentElement.dataset.theme === 'graphite');
+                window.__nativeMenu('view.theme', 'graphite');
+                assert("原生菜单主题切换(参数格式): graphite", document.documentElement.dataset.theme === 'graphite');
 
-                window.__debug.setTheme('night');
-                assert("主题切换: night", document.documentElement.dataset.theme === 'night');
+                window.__nativeMenu('view.theme:night');
+                assert("原生菜单主题切换(冒号格式): night", document.documentElement.dataset.theme === 'night');
 
-                window.__debug.setTheme('moss');
-                assert("主题切换: moss", document.documentElement.dataset.theme === 'moss');
+                window.__nativeMenu('view.theme:moss');
+                assert("原生菜单主题切换(冒号格式): moss", document.documentElement.dataset.theme === 'moss');
+
+                window.__nativeMenu('view.themeNext');
+                assert("原生菜单下一个主题: paper", document.documentElement.dataset.theme === 'paper');
 
                 window.__debug.setTheme('paper');
                 assert("主题切换: paper", document.documentElement.dataset.theme === 'paper');

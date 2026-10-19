@@ -58,8 +58,55 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func menuAction(_ sender: NSMenuItem) {
-        guard let action = sender.representedObject as? String else { return }
-        send(action)
+        guard let payload = sender.representedObject as? String else { return }
+        if payload.contains(":") {
+            let parts = payload.split(separator: ":", maxSplits: 1).map(String.init)
+            send(parts[0], arg: parts[1])
+            if parts[0] == "view.theme" {
+                UserDefaults.standard.set(parts[1], forKey: "pref.theme")
+                if let menu = sender.menu {
+                    for it in menu.items {
+                        it.state = (it == sender) ? .on : .off
+                    }
+                }
+            }
+        } else {
+            send(payload)
+            if payload.hasPrefix("view.") {
+                let v = String(payload.dropFirst(5))
+                if ["wysiwyg", "source", "split", "preview"].contains(v) {
+                    UserDefaults.standard.set(v, forKey: "pref.view")
+                    if let menu = sender.menu {
+                        for it in menu.items {
+                            if let p = it.representedObject as? String, p.hasPrefix("view.") {
+                                let name = String(p.dropFirst(5))
+                                if ["wysiwyg", "source", "split", "preview"].contains(name) {
+                                    it.state = (it == sender) ? .on : .off
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        let currentTheme = (UserDefaults.standard.string(forKey: "pref.theme")) ?? "paper"
+        let currentView = (UserDefaults.standard.string(forKey: "pref.view")) ?? "wysiwyg"
+        for item in menu.items {
+            if let payload = item.representedObject as? String {
+                if payload.hasPrefix("view.theme:") {
+                    let theme = String(payload.dropFirst("view.theme:".count))
+                    item.state = (theme == currentTheme) ? .on : .off
+                } else if payload.hasPrefix("view.") {
+                    let v = String(payload.dropFirst(5))
+                    if ["wysiwyg", "source", "split", "preview"].contains(v) {
+                        item.state = (v == currentView) ? .on : .off
+                    }
+                }
+            }
+        }
     }
 
     @discardableResult
@@ -152,6 +199,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         // ---- 视图 ----
         let view = submenu(main, "视图")
+        view.delegate = self
         item(view, "所见即所得", #selector(menuAction), "1", .command, "view.wysiwyg")
         item(view, "源码模式", #selector(menuAction), "2", .command, "view.source")
         item(view, "分栏模式", #selector(menuAction), "3", .command, "view.split")
@@ -163,6 +211,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         view.addItem(.separator())
 
         let themeMenu = submenu(view, "主题")
+        themeMenu.delegate = self
         item(themeMenu, "纸白", #selector(menuAction), "", .command, "view.theme:paper")
         item(themeMenu, "石墨", #selector(menuAction), "", .command, "view.theme:graphite")
         item(themeMenu, "夜阑", #selector(menuAction), "", .command, "view.theme:night")

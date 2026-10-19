@@ -1452,8 +1452,12 @@ ${holder.innerHTML}
     }
 
     native.on('menu', payload => {
-      const action = payload && payload.action;
-      const arg = payload && payload.arg;
+      let action = payload && payload.action;
+      let arg = payload && payload.arg;
+      if (action && action.startsWith('view.theme:') && !arg) {
+        arg = action.slice('view.theme:'.length);
+        action = 'view.theme';
+      }
       switch (action) {
         case 'file.new': newDocument(); break;
         case 'file.open': openFile(); break;
