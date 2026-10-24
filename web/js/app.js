@@ -434,18 +434,6 @@
       autoCloseBrackets: true,
       placeholder: '开始写作，或把 .md 文件拖进窗口…',
       extraKeys: {
-        'Cmd-S': () => saveDocument(false),
-        'Shift-Cmd-S': () => saveDocument(true),
-        'Cmd-F': () => openFind(false),
-        'Alt-Cmd-F': () => openFind(true),
-        'Cmd-G': () => findStep(1),
-        'Shift-Cmd-G': () => findStep(-1),
-        'Cmd-B': () => format('bold'),
-        'Cmd-I': () => format('italic'),
-        'Cmd-U': () => format('underline'),
-        'Cmd-K': () => format('link'),
-        'Alt-Cmd-T': () => toggleTypewriter(),
-        'Shift-Cmd-K': () => format('codeblock'),
         Tab: editorTab,
         'Shift-Tab': () => cm.indentLess()
       }
@@ -1229,19 +1217,21 @@ ${holder.innerHTML}
     const rows = [
       ['新建 / 打开 / 打开文件夹', '⌘N / ⌘O / ⌘⇧O'],
       ['保存 / 另存为', '⌘S / ⌘⇧S'],
+      ['撤销 / 重做', '⌘Z / ⇧⌘Z'],
+      ['剪切 / 拷贝 / 粘贴 / 全选', '⌘X / ⌘C / ⌘V / ⌘A'],
       ['导出 HTML / PDF', '⌘E / ⌘⇧E'],
       ['编辑 / 源码 / 分栏 / 预览', '⌘1 / ⌘2 / ⌘3 / ⌘4'],
-      ['侧栏 / 专注 / 打字机', '⌘⇧L / ⌥⌘F / ⌥⌘T'],
+      ['侧栏 / 专注 / 打字机', '⌘⇧L / ⌘⇧J (F8) / ⌥⌘T (F9)'],
       ['查找 / 替换', '⌘F / ⌥⌘F'],
       ['下一个 / 上一个匹配', '⌘G / ⇧⌘G'],
-      ['粗体 / 斜体 / 下划线 / 行内代码', '⌘B / ⌘I / ⌘U / ⌘`'],
+      ['粗体 / 斜体 / 下划线 / 删除线 / 行内代码', '⌘B / ⌘I / ⌘U / ⌥⌘S / ⇧⌘`'],
       ['链接 / 图片', '⌘K / ⌃⌘I'],
       ['标题 1–4', '⌃⌘1 … ⌃⌘4'],
-      ['引用 / 无序 / 有序 / 任务', '⌃⌘Q / ⌃⌘U / ⌃⌘L / ⌃⌘T'],
+      ['引用 / 无序 / 有序 / 任务', '⌥⌘Q / ⌃⌘U / ⌃⌘L / ⌥⌘X'],
       ['代码块 / 公式块 / 图表', '⇧⌘K / ⌃⌘M / ⌃⌘D'],
       ['表格 / 分隔线', '⌃⌘K / ⌃⌘H'],
       ['切换主题', '⌃⌘T'],
-      ['缩放', '⌘+ / ⌘- / ⌘0']
+      ['缩放', '⌘= (⌘+) / ⌘- / ⌘0']
     ];
     const html = '<table>' + rows.map(r => `<tr><td>${escapeHTML(r[0])}</td><td>${r[1].split(' / ').map(k => '<kbd>' + escapeHTML(k) + '</kbd>').join(' ')}</td></tr>`).join('') + '</table>' +
       '<h4>关于离线</h4><p>本应用不包含任何网络请求：授权校验、自动更新、遥测上报均已移除；公式与图表在本地渲染；图片保存到文档同级 <code>assets/</code> 目录；导出为纯本地文件操作。</p>';
@@ -1387,23 +1377,122 @@ ${holder.innerHTML}
       handleImageFiles(files);
     });
 
-    // 全局快捷键兜底（菜单未覆盖时）
-    document.addEventListener('keydown', e => {
-      const meta = e.metaKey || e.ctrlKey;
-      if (!meta) return;
-      if ((e.key === 'u' || e.key === 'U') && !e.shiftKey && !e.altKey && !e.ctrlKey) {
-        e.preventDefault();
-        format('underline');
+    // 统一捕获阶段快捷键分发（阻止 ProseMirror / CodeMirror 内部 keymap 与冒泡层双重触发抵消）
+    function matchKey(e, code, ch) {
+      if (e.code && e.code === code) return true;
+      if (!e.code && e.key && ch) {
+        const k = e.key.toLowerCase();
+        if (Array.isArray(ch)) return ch.includes(k);
+        return k === ch.toLowerCase();
       }
-      else if (e.key === '1' && !e.ctrlKey) { e.preventDefault(); applyView('wysiwyg'); }
-      else if (e.key === '2' && !e.ctrlKey) { e.preventDefault(); applyView('source'); }
-      else if (e.key === '3' && !e.ctrlKey) { e.preventDefault(); applyView('split'); }
-      else if (e.key === '4' && !e.ctrlKey) { e.preventDefault(); applyView('preview'); }
-      else if (e.key === 'e' && !e.shiftKey) { e.preventDefault(); exportHTML(); }
-      else if (e.key === 'E' || (e.key === 'e' && e.shiftKey)) { e.preventDefault(); exportPDF(); }
-      else if (e.key === '/') { e.preventDefault(); showShortcuts(); }
-      else if (e.key === 'Escape') { closeFind(); closeModal(); }
-    });
+      return false;
+    }
+
+    function consumeKey(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      S.lastKeyShortcutTs = Date.now();
+    }
+
+    window.addEventListener('keydown', e => {
+      if (e.isComposing) return;
+      if (e.key === 'Escape') { closeFind(); closeModal(); return; }
+      if (e.key === 'F8' || e.code === 'F8') { consumeKey(e); toggleFocus(); return; }
+      if (e.key === 'F9' || e.code === 'F9') { consumeKey(e); toggleTypewriter(); return; }
+
+      if (!e.metaKey) return;
+
+      const isInput = document.activeElement &&
+        (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') &&
+        !document.activeElement.closest('.CodeMirror') &&
+        !document.activeElement.closest('#wysiwyg');
+
+      // 1. 仅 ⌘ (Command)
+      if (!e.altKey && !e.ctrlKey && !e.shiftKey) {
+        if (matchKey(e, 'KeyZ', 'z')) {
+          if (!isInput) {
+            consumeKey(e);
+            if (S.prefs.view === 'wysiwyg' && wiz) wiz.undo();
+            else if (cm) cm.undo();
+          }
+        }
+        else if (matchKey(e, 'KeyB', 'b') && !isInput) { consumeKey(e); format('bold'); }
+        else if (matchKey(e, 'KeyI', 'i') && !isInput) { consumeKey(e); format('italic'); }
+        else if (matchKey(e, 'KeyU', 'u') && !isInput) { consumeKey(e); format('underline'); }
+        else if (matchKey(e, 'KeyK', 'k') && !isInput) { consumeKey(e); format('link'); }
+        else if (matchKey(e, 'KeyS', 's')) { consumeKey(e); saveDocument(false); }
+        else if (matchKey(e, 'KeyN', 'n')) { consumeKey(e); newDocument(); }
+        else if (matchKey(e, 'KeyO', 'o')) { consumeKey(e); openFile(); }
+        else if (matchKey(e, 'KeyE', 'e')) { consumeKey(e); exportHTML(); }
+        else if (matchKey(e, 'KeyF', 'f')) { consumeKey(e); openFind(false); }
+        else if (matchKey(e, 'KeyG', 'g')) { consumeKey(e); findStep(1); }
+        else if (matchKey(e, 'Digit1', '1')) { consumeKey(e); applyView('wysiwyg'); }
+        else if (matchKey(e, 'Digit2', '2')) { consumeKey(e); applyView('source'); }
+        else if (matchKey(e, 'Digit3', '3')) { consumeKey(e); applyView('split'); }
+        else if (matchKey(e, 'Digit4', '4')) { consumeKey(e); applyView('preview'); }
+        else if (matchKey(e, 'Slash', '/')) { consumeKey(e); showShortcuts(); }
+        else if (matchKey(e, 'Equal', ['=', '+']) || e.code === 'NumpadAdd') {
+          consumeKey(e);
+          if (window.native && native.available) native.invoke('window.zoom', { delta: 0.1 }).catch(() => {});
+        }
+        else if (matchKey(e, 'Minus', '-') || e.code === 'NumpadSubtract') {
+          consumeKey(e);
+          if (window.native && native.available) native.invoke('window.zoom', { delta: -0.1 }).catch(() => {});
+        }
+        else if (matchKey(e, 'Digit0', '0') || e.code === 'Numpad0') {
+          consumeKey(e);
+          if (window.native && native.available) native.invoke('window.resetZoom', {}).catch(() => {});
+        }
+      }
+      // 2. ⇧⌘ (Shift + Command)
+      else if (e.shiftKey && !e.altKey && !e.ctrlKey) {
+        if (matchKey(e, 'KeyZ', 'z')) {
+          if (!isInput) {
+            consumeKey(e);
+            if (S.prefs.view === 'wysiwyg' && wiz) wiz.redo();
+            else if (cm) cm.redo();
+          }
+        }
+        else if (matchKey(e, 'KeyS', 's')) { consumeKey(e); saveDocument(true); }
+        else if (matchKey(e, 'KeyO', 'o')) { consumeKey(e); openFolder(); }
+        else if (matchKey(e, 'KeyE', 'e')) { consumeKey(e); exportPDF(); }
+        else if (matchKey(e, 'KeyG', 'g')) { consumeKey(e); findStep(-1); }
+        else if (matchKey(e, 'KeyL', 'l')) { consumeKey(e); toggleSidebar(); }
+        else if (matchKey(e, 'KeyJ', 'j')) { consumeKey(e); toggleFocus(); }
+        else if (matchKey(e, 'KeyK', 'k') && !isInput) { consumeKey(e); format('codeblock'); }
+        else if ((matchKey(e, 'Backquote', ['`', '~', '·', '～']) || e.key === '`' || e.key === '~') && !isInput) {
+          consumeKey(e);
+          format('code');
+        }
+        else if (matchKey(e, 'Equal', ['=', '+'])) {
+          consumeKey(e);
+          if (window.native && native.available) native.invoke('window.zoom', { delta: 0.1 }).catch(() => {});
+        }
+      }
+      // 3. ⌥⌘ (Option + Command)
+      else if (e.altKey && !e.ctrlKey && !e.shiftKey) {
+        if (matchKey(e, 'KeyF', ['f', 'ƒ'])) { consumeKey(e); openFind(true); }
+        else if (matchKey(e, 'KeyS', ['s', 'ß']) && !isInput) { consumeKey(e); format('strike'); }
+        else if (matchKey(e, 'KeyQ', ['q', 'œ']) && !isInput) { consumeKey(e); format('quote'); }
+        else if (matchKey(e, 'KeyX', ['x', '≈']) && !isInput) { consumeKey(e); format('task'); }
+        else if (matchKey(e, 'KeyT', ['t', '†'])) { consumeKey(e); toggleTypewriter(); }
+      }
+      // 4. ⌃⌘ (Control + Command)
+      else if (e.ctrlKey && !e.altKey && !e.shiftKey) {
+        if (matchKey(e, 'Digit1', '1') && !isInput) { consumeKey(e); format('h1'); }
+        else if (matchKey(e, 'Digit2', '2') && !isInput) { consumeKey(e); format('h2'); }
+        else if (matchKey(e, 'Digit3', '3') && !isInput) { consumeKey(e); format('h3'); }
+        else if (matchKey(e, 'Digit4', '4') && !isInput) { consumeKey(e); format('h4'); }
+        else if (matchKey(e, 'KeyU', 'u') && !isInput) { consumeKey(e); format('ul'); }
+        else if (matchKey(e, 'KeyL', 'l') && !isInput) { consumeKey(e); format('ol'); }
+        else if (matchKey(e, 'KeyK', 'k') && !isInput) { consumeKey(e); format('table'); }
+        else if (matchKey(e, 'KeyH', 'h') && !isInput) { consumeKey(e); format('hr'); }
+        else if (matchKey(e, 'KeyM', 'm') && !isInput) { consumeKey(e); format('math'); }
+        else if (matchKey(e, 'KeyD', 'd') && !isInput) { consumeKey(e); format('mermaid'); }
+        else if (matchKey(e, 'KeyI', 'i') && !isInput) { consumeKey(e); format('image'); }
+        else if (matchKey(e, 'KeyT', 't')) { consumeKey(e); cycleTheme(); }
+      }
+    }, true);
   }
 
   async function onPreviewClick(e) {
@@ -1452,6 +1541,10 @@ ${holder.innerHTML}
     }
 
     native.on('menu', payload => {
+      if (S.lastKeyShortcutTs && (Date.now() - S.lastKeyShortcutTs < 45)) {
+        S.lastKeyShortcutTs = 0;
+        return;
+      }
       let action = payload && payload.action;
       let arg = payload && payload.arg;
       if (action && action.startsWith('view.theme:') && !arg) {
@@ -1468,6 +1561,34 @@ ${holder.innerHTML}
         case 'file.exportHTML': exportHTML(); break;
         case 'file.exportPDF': exportPDF(); break;
         case 'file.reveal': revealCurrent(); break;
+        case 'edit.undo': {
+          const isExternalInput = document.activeElement && 
+            (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') && 
+            !document.activeElement.closest('.CodeMirror') && 
+            !document.activeElement.closest('#wysiwyg');
+          if (isExternalInput) {
+            document.execCommand('undo');
+          } else if (S.prefs.view === 'wysiwyg' && wiz) {
+            wiz.undo();
+          } else if (cm) {
+            cm.undo();
+          }
+          break;
+        }
+        case 'edit.redo': {
+          const isExternalInput = document.activeElement && 
+            (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') && 
+            !document.activeElement.closest('.CodeMirror') && 
+            !document.activeElement.closest('#wysiwyg');
+          if (isExternalInput) {
+            document.execCommand('redo');
+          } else if (S.prefs.view === 'wysiwyg' && wiz) {
+            wiz.redo();
+          } else if (cm) {
+            cm.redo();
+          }
+          break;
+        }
         case 'edit.find': openFind(false); break;
         case 'edit.replace': openFind(true); break;
         case 'edit.findNext': findStep(1); break;

@@ -74,6 +74,15 @@ final class Bridge: NSObject, WKScriptMessageHandler {
         case "asset.base64":   assetBase64(id, args)
         case "shell.openExternal": openExternal(id, args)
 
+        case "window.zoom":
+            if let delta = args["delta"] as? Double {
+                windowController?.zoom(CGFloat(delta))
+            }
+            ok(id)
+        case "window.resetZoom":
+            windowController?.resetZoom()
+            ok(id)
+
         default:               fail(id, "未知指令：\(cmd)")
         }
     }

@@ -96,18 +96,23 @@ open dist/OfflineMD.app
 | <kbd>⌘</kbd> + <kbd>2</kbd> | 切换为 **源码** 视图 |
 | <kbd>⌘</kbd> + <kbd>3</kbd> | 切换为 **双栏分栏** 视图 |
 | <kbd>⌘</kbd> + <kbd>4</kbd> | 切换为 **预览** 视图 |
+| <kbd>⌘</kbd> + <kbd>Z</kbd> / <kbd>⇧</kbd> + <kbd>⌘</kbd> + <kbd>Z</kbd> | 撤销 / 重做 |
 | <kbd>⌘</kbd> + <kbd>B</kbd> | **粗体** |
 | <kbd>⌘</kbd> + <kbd>I</kbd> | *斜体* |
 | <kbd>⌘</kbd> + <kbd>U</kbd> | <u>下划线</u> |
 | <kbd>⌥</kbd> + <kbd>⌘</kbd> + <kbd>S</kbd> | ~~删除线~~ |
-| <kbd>⌘</kbd> + <kbd>`</kbd> | `行内代码` |
+| <kbd>⇧</kbd> + <kbd>⌘</kbd> + <kbd>`</kbd> | `行内代码` |
+| <kbd>⌥</kbd> + <kbd>⌘</kbd> + <kbd>Q</kbd> | 引用块 |
+| <kbd>⌥</kbd> + <kbd>⌘</kbd> + <kbd>X</kbd> | 交互式任务列表 |
+| <kbd>⌘</kbd> + <kbd>K</kbd> | 插入 / 切换链接 |
 | <kbd>⌘</kbd> + <kbd>F</kbd> | 查找文本 |
 | <kbd>⌥</kbd> + <kbd>⌘</kbd> + <kbd>F</kbd> | 查找并替换 |
 | <kbd>⌃</kbd> + <kbd>⌘</kbd> + <kbd>T</kbd> | 循环切换主题（纸白 / 石墨 / 夜阑 / 松墨） |
-| <kbd>⌥</kbd> + <kbd>⌘</kbd> + <kbd>T</kbd> | 开启 / 关闭打字机居中模式 |
-| <kbd>⌥</kbd> + <kbd>⌘</kbd> + <kbd>J</kbd> | 开启 / 关闭专注聚焦模式 |
+| <kbd>⌥</kbd> + <kbd>⌘</kbd> + <kbd>T</kbd> / <kbd>F9</kbd> | 开启 / 关闭打字机居中模式 |
+| <kbd>⇧</kbd> + <kbd>⌘</kbd> + <kbd>J</kbd> / <kbd>F8</kbd> | 开启 / 关闭专注聚焦模式 |
 | <kbd>⌘</kbd> + <kbd>E</kbd> | 导出为自包含 HTML |
-| <kbd>⌥</kbd> + <kbd>⌘</kbd> + <kbd>P</kbd> | 导出为 A4 分页 PDF |
+| <kbd>⇧</kbd> + <kbd>⌘</kbd> + <kbd>E</kbd> | 导出为 A4 分页 PDF |
+| <kbd>⌘</kbd> + <kbd>=</kbd> / <kbd>⌘</kbd> + <kbd>-</kbd> / <kbd>⌘</kbd> + <kbd>0</kbd> | 放大 / 缩小 / 恢复默认视图大小 |
 | <kbd>⌘</kbd> + <kbd>/</kbd> | 查看完整的应用内快捷键面板 |
 
 ---

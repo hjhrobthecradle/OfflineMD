@@ -16,14 +16,15 @@ import {
 } from '@milkdown/preset-commonmark';
 import { gfm } from '@milkdown/preset-gfm';
 import { listener, listenerCtx } from '@milkdown/plugin-listener';
-import { history } from '@milkdown/plugin-history';
+import { history, undoCommand, redoCommand } from '@milkdown/plugin-history';
 import { clipboard } from '@milkdown/plugin-clipboard';
 import { cursor } from '@milkdown/plugin-cursor';
 import { indent } from '@milkdown/plugin-indent';
 import { math } from '@milkdown/plugin-math';
 import { Plugin, PluginKey, TextSelection } from '@milkdown/prose/state';
 import { Decoration, DecorationSet } from '@milkdown/prose/view';
-import { toggleMark } from '@milkdown/prose/commands';
+import { toggleMark, lift } from '@milkdown/prose/commands';
+import { liftListItem } from '@milkdown/prose/schema-list';
 import { markRule } from '@milkdown/prose';
 import { $markAttr, $markSchema, $command, $inputRule, $useKeymap, $remark } from '@milkdown/utils';
 
@@ -660,9 +661,15 @@ class WysiwygEditor {
   run(cmd, payload) {
     if (!this.editor || !cmd) return false;
     return this.editor.action(ctx => {
-      const view = ctx.get(editorViewCtx);
       try {
-        return !!cmd.run(payload)(view.state, view.dispatch, view);
+        if (cmd.key) {
+          return !!ctx.get(commandsCtx).call(cmd.key, payload);
+        }
+        if (typeof cmd.run === 'function') {
+          return !!cmd.run(payload);
+        }
+        const view = ctx.get(editorViewCtx);
+        return !!cmd(payload)(view.state, view.dispatch, view);
       } catch (e) {
         console.warn('[wysiwyg] command failed', e);
         return false;
@@ -670,22 +677,30 @@ class WysiwygEditor {
     });
   }
 
+  undo() {
+    return this.run(undoCommand);
+  }
+
+  redo() {
+    return this.run(redoCommand);
+  }
+
   format(kind) {
     switch (kind) {
-      case 'bold': return this.run(toggleStrongCommand);
-      case 'italic': return this.run(toggleEmphasisCommand);
-      case 'code': return this.run(toggleInlineCodeCommand);
-      case 'strike': return this.toggleStrike();
-      case 'underline': return this.toggleUnderline();
-      case 'link': return this.run(toggleLinkCommand, { href: '' });
-      case 'h1': return this.run(wrapInHeadingCommand, 1);
-      case 'h2': return this.run(wrapInHeadingCommand, 2);
-      case 'h3': return this.run(wrapInHeadingCommand, 3);
-      case 'h4': return this.run(wrapInHeadingCommand, 4);
+      case 'bold': return this.toggleMarkByName('strong');
+      case 'italic': return this.toggleMarkByName('emphasis');
+      case 'code': return this.toggleMarkByName('inlineCode');
+      case 'strike': return this.toggleMarkByName('strike_through');
+      case 'underline': return this.toggleMarkByName('underline');
+      case 'link': return this.toggleLink();
+      case 'h1': return this.toggleHeading(1);
+      case 'h2': return this.toggleHeading(2);
+      case 'h3': return this.toggleHeading(3);
+      case 'h4': return this.toggleHeading(4);
       case 'paragraph': return this.run(turnIntoTextCommand);
-      case 'quote': return this.run(wrapInBlockquoteCommand);
-      case 'ul': return this.run(wrapInBulletListCommand);
-      case 'ol': return this.run(wrapInOrderedListCommand);
+      case 'quote': return this.toggleQuote();
+      case 'ul': return this.toggleList('bullet_list');
+      case 'ol': return this.toggleList('ordered_list');
       case 'hr': return this.run(insertHrCommand);
       case 'tasklist': return this.turnTaskList();
       case 'table': return this.insertTable();
@@ -696,41 +711,205 @@ class WysiwygEditor {
     }
   }
 
-  toggleStrike() {
+  findMarkSpan($pos, markType) {
+    const parent = $pos.parent;
+    const base = $pos.start();
+    const target = $pos.parentOffset;
+    let spanStart = -1;
+    let spanEnd = -1;
+    let found = null;
+    parent.forEach((child, offset) => {
+      if (found) return;
+      const end = offset + child.nodeSize;
+      if (child.isText && markType.isInSet(child.marks)) {
+        if (spanStart < 0) spanStart = offset;
+        spanEnd = end;
+      } else {
+        if (spanStart >= 0 && target >= spanStart && target <= spanEnd) {
+          found = { from: base + spanStart, to: base + spanEnd };
+          return;
+        }
+        spanStart = -1;
+        spanEnd = -1;
+      }
+    });
+    if (!found && spanStart >= 0 && target >= spanStart && target <= spanEnd) {
+      found = { from: base + spanStart, to: base + spanEnd };
+    }
+    return found;
+  }
+
+  toggleMarkByName(markName) {
     if (!this.editor) return false;
+    const placeholders = {
+      strong: '粗体',
+      emphasis: '斜体',
+      underline: '下划线',
+      strike_through: '删除线',
+      inlineCode: '代码'
+    };
     return this.editor.action(ctx => {
       const view = ctx.get(editorViewCtx);
       const { state } = view;
-      const mark = state.schema.marks.strikethrough;
+      const mark = state.schema.marks[markName];
       if (!mark) return false;
-      const { from, to, empty } = state.selection;
+      const { from, to, empty, $from } = state.selection;
       if (empty) {
-        return mark.isInSet(state.storedMarks || state.selection.$from.marks())
-          ? (view.dispatch(state.tr.removeStoredMark(mark)), true)
-          : (view.dispatch(state.tr.addStoredMark(mark.create())), true);
+        const stored = state.storedMarks || $from.marks();
+        const inSet = !!mark.isInSet(stored);
+        const span = $from.parent.isTextblock ? this.findMarkSpan($from, mark) : null;
+        if (span) {
+          if (from < span.to || !inSet) {
+            view.dispatch(state.tr.removeMark(span.from, span.to, mark));
+            view.focus();
+            return true;
+          }
+          view.dispatch(state.tr.removeStoredMark(mark));
+          view.focus();
+          return true;
+        }
+        if (inSet) {
+          view.dispatch(state.tr.removeStoredMark(mark));
+          view.focus();
+          return true;
+        }
+        const label = placeholders[markName] || '文本';
+        const baseMarks = (state.storedMarks || $from.marks()).filter(m => {
+          if (markName === 'inlineCode') return false;
+          return m.type.name !== 'inlineCode';
+        });
+        const textNode = state.schema.text(label, baseMarks.concat([mark.create()]));
+        const tr = state.tr.replaceSelectionWith(textNode, false);
+        const sel = TextSelection.create(tr.doc, from, from + label.length);
+        view.dispatch(tr.setSelection(sel).scrollIntoView());
+        view.focus();
+        return true;
       }
       const has = state.doc.rangeHasMark(from, to, mark);
-      view.dispatch(has ? state.tr.removeMark(from, to, mark) : state.tr.addMark(from, to, mark.create()));
+      if (has) {
+        view.dispatch(state.tr.removeMark(from, to, mark));
+      } else {
+        const tr = state.tr;
+        if (markName === 'inlineCode') {
+          Object.keys(state.schema.marks).forEach(k => {
+            if (k !== 'inlineCode') tr.removeMark(from, to, state.schema.marks[k]);
+          });
+        } else if (state.schema.marks.inlineCode) {
+          tr.removeMark(from, to, state.schema.marks.inlineCode);
+        }
+        view.dispatch(tr.addMark(from, to, mark.create()));
+      }
+      view.focus();
       return true;
     });
   }
 
+  toggleStrike() {
+    return this.toggleMarkByName('strike_through');
+  }
+
   toggleUnderline() {
+    return this.toggleMarkByName('underline');
+  }
+
+  toggleLink() {
     if (!this.editor) return false;
     return this.editor.action(ctx => {
       const view = ctx.get(editorViewCtx);
       const { state } = view;
-      const mark = state.schema.marks.underline;
+      const mark = state.schema.marks.link;
       if (!mark) return false;
-      const { from, to, empty } = state.selection;
+      const { from, to, empty, $from } = state.selection;
       if (empty) {
-        return mark.isInSet(state.storedMarks || state.selection.$from.marks())
-          ? (view.dispatch(state.tr.removeStoredMark(mark)), true)
-          : (view.dispatch(state.tr.addStoredMark(mark.create())), true);
+        const span = this.findMarkSpan($from, mark);
+        if (span) {
+          view.dispatch(state.tr.removeMark(span.from, span.to, mark));
+          view.focus();
+          return true;
+        }
+        const label = '链接文字';
+        const linkNode = state.schema.text(label, [mark.create({ href: 'https://' })]);
+        const tr = state.tr.replaceSelectionWith(linkNode, false);
+        const sel = TextSelection.create(tr.doc, from, from + label.length);
+        view.dispatch(tr.setSelection(sel).scrollIntoView());
+        view.focus();
+        return true;
       }
       const has = state.doc.rangeHasMark(from, to, mark);
-      view.dispatch(has ? state.tr.removeMark(from, to, mark) : state.tr.addMark(from, to, mark.create()));
+      if (has) {
+        view.dispatch(state.tr.removeMark(from, to, mark));
+      } else {
+        view.dispatch(state.tr.addMark(from, to, mark.create({ href: 'https://' })));
+      }
+      view.focus();
       return true;
+    });
+  }
+
+  toggleHeading(level) {
+    if (!this.editor) return false;
+    const isSame = this.editor.action(ctx => {
+      const { state } = ctx.get(editorViewCtx);
+      const parent = state.selection.$from.parent;
+      return parent.type.name === 'heading' && parent.attrs.level === level;
+    });
+    const ok = isSame ? this.run(turnIntoTextCommand) : this.run(wrapInHeadingCommand, level);
+    this.focus();
+    return ok;
+  }
+
+  toggleQuote() {
+    if (!this.editor) return false;
+    return this.editor.action(ctx => {
+      const view = ctx.get(editorViewCtx);
+      const { state } = view;
+      const $from = state.selection.$from;
+      let inQuote = false;
+      for (let d = $from.depth; d > 0; d--) {
+        if ($from.node(d).type.name === 'blockquote') {
+          inQuote = true;
+          break;
+        }
+      }
+      if (inQuote) {
+        const ok = lift(state, view.dispatch);
+        view.focus();
+        return ok;
+      }
+      const ok = !!ctx.get(commandsCtx).call(wrapInBlockquoteCommand.key);
+      view.focus();
+      return ok;
+    });
+  }
+
+  toggleList(listType) {
+    if (!this.editor) return false;
+    return this.editor.action(ctx => {
+      const view = ctx.get(editorViewCtx);
+      const { state } = view;
+      const $from = state.selection.$from;
+      for (let d = $from.depth; d > 0; d--) {
+        const node = $from.node(d);
+        if (node.type.name === 'list_item') {
+          const parentList = d > 1 ? $from.node(d - 1) : null;
+          if (listType === 'bullet_list' && node.attrs.checked != null) {
+            view.dispatch(state.tr.setNodeMarkup($from.before(d), undefined, Object.assign({}, node.attrs, { checked: null })));
+            view.focus();
+            return true;
+          }
+          if (parentList && parentList.type.name === listType) {
+            const liType = state.schema.nodes.list_item;
+            const ok = liType ? liftListItem(liType)(state, view.dispatch) : false;
+            view.focus();
+            return ok;
+          }
+          break;
+        }
+      }
+      const cmd = listType === 'ordered_list' ? wrapInOrderedListCommand : wrapInBulletListCommand;
+      const ok = !!ctx.get(commandsCtx).call(cmd.key);
+      view.focus();
+      return ok;
     });
   }
 
@@ -747,6 +926,7 @@ class WysiwygEditor {
       const row = () => rowType.create(null, [cell(), cell(), cell()]);
       const node = tableType.create(null, [row(), row(), row()]);
       view.dispatch(state.tr.replaceSelectionWith(node).scrollIntoView());
+      view.focus();
       return true;
     });
   }
@@ -761,13 +941,33 @@ class WysiwygEditor {
       for (let d = $from.depth; d > 0; d--) {
         const node = $from.node(d);
         if (node.type.name === 'list_item') {
-          // gfm 用 list_item.checked != null 表示「这是任务列表项」
-          const next = node.attrs.checked != null ? null : true;
-          view.dispatch(state.tr.setNodeMarkup($from.before(d), undefined, { checked: next }));
-          return true;
+          if (node.attrs.checked != null) {
+            view.dispatch(state.tr.setNodeMarkup($from.before(d), undefined, Object.assign({}, node.attrs, { checked: null })));
+            const liType = view.state.schema.nodes.list_item;
+            if (liType) liftListItem(liType)(view.state, view.dispatch);
+            view.focus();
+            return true;
+          } else {
+            view.dispatch(state.tr.setNodeMarkup($from.before(d), undefined, Object.assign({}, node.attrs, { checked: false })));
+            view.focus();
+            return true;
+          }
         }
       }
-      return this.run(wrapInBulletListCommand);
+      const wrapped = !!ctx.get(commandsCtx).call(wrapInBulletListCommand.key);
+      if (wrapped) {
+        const nextState = view.state;
+        const $nextFrom = nextState.selection.$from;
+        for (let d = $nextFrom.depth; d > 0; d--) {
+          const node = $nextFrom.node(d);
+          if (node.type.name === 'list_item') {
+            view.dispatch(nextState.tr.setNodeMarkup($nextFrom.before(d), undefined, Object.assign({}, node.attrs, { checked: false })));
+            break;
+          }
+        }
+      }
+      view.focus();
+      return wrapped;
     });
   }
 

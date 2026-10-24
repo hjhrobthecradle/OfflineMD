@@ -112,12 +112,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @discardableResult
     private func item(_ menu: NSMenu, _ title: String, _ action: Selector?, _ key: String = "",
                       _ mods: NSEvent.ModifierFlags = .command, _ payload: String? = nil,
-                      target: AnyObject? = nil) -> NSMenuItem {
+                      target: AnyObject? = nil, useResponderChain: Bool = false) -> NSMenuItem {
         let mi = NSMenuItem(title: title, action: action, keyEquivalent: key)
         if !key.isEmpty { mi.keyEquivalentModifierMask = mods }
         if let payload = payload { mi.representedObject = payload }
-        if let action = action {
-            mi.target = (target as AnyObject?) ?? self
+        if action != nil {
+            if useResponderChain {
+                mi.target = nil
+            } else {
+                mi.target = target ?? self
+            }
         } else {
             mi.target = nil
         }
@@ -133,7 +137,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return sub
     }
 
-    private func buildMenu() {
+    func buildMenu() {
         let main = NSMenu()
         NSApp.mainMenu = main
 
@@ -145,8 +149,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         appMenu.addItem(withTitle: "关于 OfflineMD",
                         action: #selector(showAbout), keyEquivalent: "").target = self
         appMenu.addItem(.separator())
-        let settings = NSMenuItem(title: "快捷键与说明", action: #selector(showShortcuts), keyEquivalent: "/")
-        settings.keyEquivalentModifierMask = .command
+        let settings = NSMenuItem(title: "快捷键与说明", action: #selector(showShortcuts), keyEquivalent: "")
         settings.target = self
         appMenu.addItem(settings)
         appMenu.addItem(.separator())
@@ -180,17 +183,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         item(file, "导出为 HTML…", #selector(menuAction), "e", .command, "file.exportHTML")
         item(file, "导出为 PDF…", #selector(menuAction), "e", [.command, .shift], "file.exportPDF")
         file.addItem(.separator())
-        item(file, "关闭窗口", #selector(NSWindow.performClose(_:)), "w", .command, nil, target: nil)
+        item(file, "关闭窗口", #selector(NSWindow.performClose(_:)), "w", .command, nil, useResponderChain: true)
 
         // ---- 编辑 ----
         let edit = submenu(main, "编辑")
-        item(edit, "撤销", Selector(("undo:")), "z", .command, nil, target: nil)
-        item(edit, "重做", Selector(("redo:")), "z", [.command, .shift], nil, target: nil)
+        item(edit, "撤销", #selector(menuAction), "z", .command, "edit.undo")
+        item(edit, "重做", #selector(menuAction), "z", [.command, .shift], "edit.redo")
         edit.addItem(.separator())
-        item(edit, "剪切", #selector(NSText.cut(_:)), "x", .command, nil, target: nil)
-        item(edit, "拷贝", #selector(NSText.copy(_:)), "c", .command, nil, target: nil)
-        item(edit, "粘贴", #selector(NSText.paste(_:)), "v", .command, nil, target: nil)
-        item(edit, "全选", #selector(NSText.selectAll(_:)), "a", .command, nil, target: nil)
+        item(edit, "剪切", #selector(NSText.cut(_:)), "x", .command, nil, useResponderChain: true)
+        item(edit, "拷贝", #selector(NSText.copy(_:)), "c", .command, nil, useResponderChain: true)
+        item(edit, "粘贴", #selector(NSText.paste(_:)), "v", .command, nil, useResponderChain: true)
+        item(edit, "全选", #selector(NSText.selectAll(_:)), "a", .command, nil, useResponderChain: true)
         edit.addItem(.separator())
         item(edit, "查找…", #selector(menuAction), "f", .command, "edit.find")
         item(edit, "查找下一个", #selector(menuAction), "g", .command, "edit.findNext")
@@ -206,7 +209,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         item(view, "预览模式", #selector(menuAction), "4", .command, "view.preview")
         view.addItem(.separator())
         item(view, "显示侧栏", #selector(menuAction), "l", [.command, .shift], "view.sidebar")
-        item(view, "专注模式", #selector(menuAction), "f", [.command, .option], "view.focus")
+        item(view, "专注模式", #selector(menuAction), "j", [.command, .shift], "view.focus")
         item(view, "打字机模式", #selector(menuAction), "t", [.command, .option], "view.typewriter")
         view.addItem(.separator())
 
@@ -220,9 +223,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         item(themeMenu, "下一个主题", #selector(menuAction), "t", [.command, .control], "view.themeNext")
 
         view.addItem(.separator())
-        let zoomIn = NSMenuItem(title: "放大", action: #selector(zoomIn), keyEquivalent: "+")
-        zoomIn.target = self
-        view.addItem(zoomIn)
+        let zoomInItem = NSMenuItem(title: "放大", action: #selector(zoomIn), keyEquivalent: "=")
+        zoomInItem.keyEquivalentModifierMask = .command
+        zoomInItem.target = self
+        view.addItem(zoomInItem)
         let zoomOut = NSMenuItem(title: "缩小", action: #selector(zoomOut), keyEquivalent: "-")
         zoomOut.target = self
         view.addItem(zoomOut)
@@ -236,17 +240,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         item(format, "斜体", #selector(menuAction), "i", .command, "format.italic")
         item(format, "下划线", #selector(menuAction), "u", .command, "format.underline")
         item(format, "删除线", #selector(menuAction), "s", [.command, .option], "format.strike")
-        item(format, "行内代码", #selector(menuAction), "`", .command, "format.code")
+        item(format, "行内代码", #selector(menuAction), "`", [.command, .shift], "format.code")
         format.addItem(.separator())
         item(format, "标题 1", #selector(menuAction), "1", [.command, .control], "format.h1")
         item(format, "标题 2", #selector(menuAction), "2", [.command, .control], "format.h2")
         item(format, "标题 3", #selector(menuAction), "3", [.command, .control], "format.h3")
         item(format, "标题 4", #selector(menuAction), "4", [.command, .control], "format.h4")
         format.addItem(.separator())
-        item(format, "引用", #selector(menuAction), "q", [.command, .control], "format.quote")
+        item(format, "引用", #selector(menuAction), "q", [.command, .option], "format.quote")
         item(format, "无序列表", #selector(menuAction), "u", [.command, .control], "format.ul")
         item(format, "有序列表", #selector(menuAction), "l", [.command, .control], "format.ol")
-        item(format, "任务列表", #selector(menuAction), "t", [.command, .control], "format.task")
+        item(format, "任务列表", #selector(menuAction), "x", [.command, .option], "format.task")
         item(format, "表格", #selector(menuAction), "k", [.command, .control], "format.table")
         item(format, "分隔线", #selector(menuAction), "h", [.command, .control], "format.hr")
         format.addItem(.separator())
